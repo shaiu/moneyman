@@ -31,7 +31,8 @@ export async function runWithStorage(runScraper: Runner) {
       );
     },
     async onResultsReady(results: AccountScrapeResult[]) {
-      await send(getSummaryMessages(results));
+      const summaryMessage = getSummaryMessages(results);
+      await send(summaryMessage, "HTML");
       await saveResults(results);
     },
     async onError(e: Error, caller: string = "unknown") {
@@ -41,8 +42,8 @@ export async function runWithStorage(runScraper: Runner) {
     async failureScreenshotsHandler(photos) {
       await sendPhotos(photos);
     },
-    async reportUsedDomains(domains) {
-      await sendJSON(domains, "used-domains.txt");
+    async reportRunMetadata(metadata) {
+      await sendJSON(metadata, "run-metadata.txt");
     },
   });
 
