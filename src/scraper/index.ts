@@ -127,11 +127,15 @@ async function scrapeAccount(
   await setStatusMessage(`, took ${duration.toFixed(1)}s`, true);
 
   // Save cookies after successful scraping
-  if (result.success && scraperOptions.browserContext) {
+  if (result.success) {
     try {
-      const pages = await scraperOptions.browserContext.pages();
-      if (pages.length > 0) {
-        await saveCookies(pages[0], account.companyId);
+      // browserContext exists at runtime but isn't in the ScraperOptions type definition
+      const optionsWithContext = scraperOptions as any;
+      if (optionsWithContext.browserContext) {
+        const pages = await optionsWithContext.browserContext.pages();
+        if (pages.length > 0) {
+          await saveCookies(pages[0], account.companyId);
+        }
       }
     } catch (e) {
       logger(`Failed to save cookies`, e);
