@@ -127,9 +127,9 @@ async function scrapeAccount(
   await setStatusMessage(`, took ${duration.toFixed(1)}s`, true);
 
   // Save cookies after successful scraping
-  if (result.success && scraperOptions.browserContext) {
+  if (result.success && (scraperOptions as any).browserContext) {
     try {
-      const pages = await scraperOptions.browserContext.pages();
+      const pages = await (scraperOptions as any).browserContext.pages();
       if (pages.length > 0) {
         await saveCookies(pages[0], account.companyId);
       }
