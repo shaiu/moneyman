@@ -90,13 +90,20 @@ export async function saveCookies(
   page: Page,
   companyId: CompanyTypes,
 ): Promise<void> {
+  console.log(`[DEBUG] saveCookies called for ${companyId}`);
+
   if (!config.options.scraping.enableCookiePersistence) {
+    console.log("[DEBUG] Cookie persistence is disabled in config");
     logger("Cookie persistence is disabled");
     return;
   }
 
+  console.log("[DEBUG] Cookie persistence is enabled, attempting to save cookies");
+
   try {
     const cookies = await page.cookies();
+    console.log(`[DEBUG] Retrieved ${cookies.length} cookies from page`);
+
     if (cookies.length === 0) {
       logger(`No cookies to save for ${companyId}`);
       return;
@@ -122,6 +129,7 @@ export async function saveCookies(
       "To persist cookies between runs, save the above JSON to PERSISTED_COOKIES secret/environment variable",
     );
   } catch (e) {
+    console.log("[DEBUG] Error saving cookies:", e);
     logger(`Failed to save cookies for ${companyId}`, e);
   }
 }
