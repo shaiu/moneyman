@@ -22,6 +22,8 @@ export const browserArgs = [
 ];
 export const browserExecutablePath =
   config.options.scraping.puppeteerExecutablePath || undefined;
+export const browserProfilePath =
+  config.options.scraping.browserProfilePath || undefined;
 
 const logger = createLogger("browser");
 
@@ -31,6 +33,7 @@ export async function createBrowser(): Promise<Browser> {
     executablePath: browserExecutablePath,
     // Hide the "Chrome is being controlled by automated software" marker.
     ignoreDefaultArgs: ["--enable-automation"],
+    ...(browserProfilePath ? { userDataDir: browserProfilePath } : {}),
   } satisfies LaunchOptions;
 
   logger("Creating browser", options);
@@ -41,7 +44,12 @@ export async function createSecureBrowserContext(
   browser: Browser,
   companyId: CompanyTypes,
 ): Promise<BrowserContext> {
-  const context = await browser.createBrowserContext();
+  // When using a persistent browser profile, use the default context so
+  // cookies and session data are preserved across runs. Incognito contexts
+  // created via createBrowserContext() do not share the profile's storage.
+  const context = browserProfilePath
+    ? browser.defaultBrowserContext()
+    : await browser.createBrowserContext();
   await initDomainTracking(context, companyId);
   await initCloudflareSkipping(context);
   return context;
