@@ -31,12 +31,19 @@ jobs:
       - id: set-container-image
         run: echo "image=${{ env.REGISTRY }}/${{ steps.normalize-repository-name.outputs.repository }}:${{ github.event.inputs.containerTag || 'latest' }}" >> $GITHUB_OUTPUT
 
+      - name: Restore browser profile cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/browser-profile
+          key: browser-profile-v1
+
       - name: Pull container image
         run: docker pull ${{ steps.set-container-image.outputs.image }}
 
       - name: Run scraper
         run: >
           docker run --rm
+          -v /tmp/browser-profile:/browser-profile
           -e MONEYMAN_CONFIG
           -e DEBUG
           -e TZ
