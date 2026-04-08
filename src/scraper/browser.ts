@@ -53,20 +53,31 @@ export async function createSecureBrowserContext(
     : await browser.createBrowserContext();
   await initDomainTracking(context, companyId);
   await initCloudflareSkipping(context);
-  await injectCookiesFromEnv(context);
+  await injectCookiesFromEnv(context, companyId);
   return context;
 }
 
-async function injectCookiesFromEnv(context: BrowserContext) {
+async function injectCookiesFromEnv(
+  context: BrowserContext,
+  companyId: CompanyTypes,
+) {
   const raw = process.env.MONEYMAN_BROWSER_COOKIES;
   if (!raw) return;
 
   try {
-    const cookies: CookieParam[] = JSON.parse(raw);
-    logger(
-      "Injecting %d cookies from MONEYMAN_BROWSER_COOKIES",
-      cookies.length,
-    );
+    const parsed: Record<string, CookieParam[]> | CookieParam[] =
+      JSON.parse(raw);
+
+    // Support both formats:
+    // - keyed by companyId: { "hapoalim": [...], "visaCal": [...] }
+    // - flat array (legacy): [...]
+    const cookies = Array.isArray(parsed)
+      ? parsed
+      : (parsed[companyId] ?? []);
+
+    if (cookies.length === 0) return;
+
+    logger("Injecting %d cookies for %s", cookies.length, companyId);
     const page = await context.newPage();
     await page.setCookie(...cookies);
     await page.close();
