@@ -61,8 +61,8 @@ export async function scrapeAccounts(
         { prefix: `[#${i} ${companyId}]` },
         async () => {
           if (lastCompanyId === companyId) {
-            logger("Delaying 5s before next %s account", companyId);
-            await new Promise((r) => setTimeout(r, 5000));
+            logger("Delaying 30s before next %s account", companyId);
+            await new Promise((r) => setTimeout(r, 30000));
           }
           lastCompanyId = companyId;
           const browserContext = await createSecureBrowserContext(
