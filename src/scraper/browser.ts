@@ -63,7 +63,10 @@ async function injectCookiesFromEnv(context: BrowserContext) {
 
   try {
     const cookies: CookieParam[] = JSON.parse(raw);
-    logger("Injecting %d cookies from MONEYMAN_BROWSER_COOKIES", cookies.length);
+    logger(
+      "Injecting %d cookies from MONEYMAN_BROWSER_COOKIES",
+      cookies.length,
+    );
     const page = await context.newPage();
     await page.setCookie(...cookies);
     await page.close();
