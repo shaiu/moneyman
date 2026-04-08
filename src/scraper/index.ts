@@ -53,12 +53,18 @@ export async function scrapeAccounts(
   const browser = await createBrowser();
   logger(`Browser created, starting to scrape ${accounts.length} accounts`);
 
+  let lastCompanyId: string | undefined;
   const results = await parallelLimit<AccountConfig, AccountScrapeResult[]>(
     accounts.map((account, i) => async () => {
       const { companyId } = account;
       return loggerContextStore.run(
         { prefix: `[#${i} ${companyId}]` },
         async () => {
+          if (lastCompanyId === companyId) {
+            logger("Delaying 5s before next %s account", companyId);
+            await new Promise((r) => setTimeout(r, 5000));
+          }
+          lastCompanyId = companyId;
           const browserContext = await createSecureBrowserContext(
             browser,
             companyId,
