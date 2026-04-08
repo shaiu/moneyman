@@ -11,7 +11,7 @@
     "outDir": "dst",
     "module": "ESNext",
     "types": ["jest", "node"],
-    "ignoreDeprecations": "5.0"
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*"]
 }
