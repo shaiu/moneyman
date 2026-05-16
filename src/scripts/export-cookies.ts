@@ -19,7 +19,9 @@ import puppeteer from "puppeteer";
 import { browserArgs, browserExecutablePath } from "../scraper/browser.js";
 import { createInterface } from "readline";
 
-const company = process.argv.find((a, i) => process.argv[i - 1] === "--company");
+const company = process.argv.find(
+  (a, i) => process.argv[i - 1] === "--company",
+);
 const url = process.argv.find((a, i) => process.argv[i - 1] === "--url");
 
 if (!company || !url) {
