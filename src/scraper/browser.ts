@@ -71,9 +71,7 @@ async function injectCookiesFromEnv(
     // Support both formats:
     // - keyed by companyId: { "hapoalim": [...], "visaCal": [...] }
     // - flat array (legacy): [...]
-    const cookies = Array.isArray(parsed)
-      ? parsed
-      : (parsed[companyId] ?? []);
+    const cookies = Array.isArray(parsed) ? parsed : (parsed[companyId] ?? []);
 
     if (cookies.length === 0) return;
 
