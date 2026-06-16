@@ -1,4 +1,4 @@
-name: Scrape
+name: Scrape_Max
 
 on:
   workflow_dispatch:
@@ -17,7 +17,7 @@ on:
         required: false
         default: "moneyman:*"
   schedule:
-    - cron: "5 09,21 * * *"
+    - cron: "5 07,19 * * *"
 env:
   REGISTRY: ghcr.io
 jobs:

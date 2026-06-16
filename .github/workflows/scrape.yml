@@ -1,4 +1,4 @@
-name: Scrape
+name: Scrape_Hapoalim
 
 on:
   workflow_dispatch:
