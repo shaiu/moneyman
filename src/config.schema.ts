@@ -1,11 +1,24 @@
 import z from "zod/v4";
 
+// Bank scrapers type every credential field into a login form as text (via
+// puppeteer's keyboard.type). A value written in the config as an unquoted
+// number/boolean — a common mistake for all-digit usernames or IDs — is parsed
+// by JSON as a number, and left un-coerced it makes keyboard.type() throw
+// "text is not iterable" during login. Coerce every credential value to a string.
+const CredentialValueSchema = z
+  .union([z.string(), z.number(), z.boolean()])
+  .transform((value) => String(value));
+
 // TODO: Use the actual login field combinations from israeli-bank-scrapers once available
 // Account configuration schema based on israeli-bank-scrapers login field combinations
-const AccountSchema = z.looseObject({
-  companyId: z.string().min(1, { error: "Company ID is required" }),
-  password: z.string().min(1, { error: "Password is required" }),
-});
+const AccountSchema = z
+  .object({
+    companyId: z.string().min(1, { error: "Company ID is required" }),
+    password: CredentialValueSchema.refine((value) => value.length >= 1, {
+      error: "Password is required",
+    }),
+  })
+  .catchall(CredentialValueSchema);
 
 // Storage provider schemas
 export const GoogleSheetsSchema = z.object({
