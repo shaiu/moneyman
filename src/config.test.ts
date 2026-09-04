@@ -28,6 +28,35 @@ describe("config", () => {
     expect(parsed.options.logging.getIpInfoUrl).toBe("https://ipinfo.io/json");
   });
 
+  it("should coerce numeric account credentials to strings", () => {
+    // An all-digit username/id written in JSON without quotes is parsed as a
+    // number. Left un-coerced it reaches puppeteer's keyboard.type() and throws
+    // "text is not iterable" during login. Credentials must be strings.
+    const parsed = MoneymanConfigSchema.parse({
+      accounts: [
+        {
+          companyId: "visaCal",
+          username: 12345678,
+          password: "secret",
+        },
+      ],
+    });
+
+    const account = parsed.accounts[0] as Record<string, unknown>;
+    expect(account.username).toBe("12345678");
+    expect(typeof account.username).toBe("string");
+  });
+
+  it("should coerce a numeric password to a string", () => {
+    const parsed = MoneymanConfigSchema.parse({
+      accounts: [{ companyId: "hapoalim", userCode: "abc", password: 987654 }],
+    });
+
+    const account = parsed.accounts[0] as Record<string, unknown>;
+    expect(account.password).toBe("987654");
+    expect(typeof account.password).toBe("string");
+  });
+
   it("should use MONEYMAN_CONFIG when provided", async () => {
     const configJson = {
       accounts: [{ companyId: "test", password: "pass", userCode: "12345" }],
