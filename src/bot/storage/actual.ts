@@ -19,6 +19,7 @@ type ImportTransactionEntity = Parameters<
 export class ActualBudgetStorage implements TransactionStorage {
   private bankToActualAccountMap = new Map<string, string>();
   private accountIdToNameMap = new Map<string, string>();
+  private actualAccountToTransferPayeeId = new Map<string, string>();
 
   constructor(private config: MoneymanConfig) {}
 
@@ -162,6 +163,16 @@ export class ActualBudgetStorage implements TransactionStorage {
 
       const actualAccounts = await actualApi.getAccounts();
       const validActualAccountIds = new Set(actualAccounts.map((a) => a.id));
+
+      const payees = await actualApi.getPayees();
+      this.actualAccountToTransferPayeeId = new Map(
+        payees
+          .filter((p) => p.transfer_acct)
+          .map((p) => [p.transfer_acct as string, p.id]),
+      );
+      logger(
+        `loaded ${this.actualAccountToTransferPayeeId.size} transfer payee mappings`,
+      );
       this.accountIdToNameMap = new Map(
         actualAccounts.map((a) => [a.id, a.name]),
       );
@@ -196,17 +207,47 @@ export class ActualBudgetStorage implements TransactionStorage {
     }
   }
 
+  // When a scraped transaction's identifier matches the key of a *different*
+  // configured account, treat the transaction as a transfer to that account.
+  //
+  // Bank Hapoalim returns an identical activityDescription ("כאל") for both
+  // Cal cards' monthly debits — the card's last-4 lives only in the reference
+  // number, which israeli-bank-scrapers exposes as tx.identifier. Without this,
+  // both cards' debits land as ordinary payees and the accounts drift.
+  private resolveTransferPayeeId(
+    tx: TransactionRow,
+    sourceAccountId: string,
+  ): string | undefined {
+    const identifier = tx.identifier?.toString();
+    if (!identifier) return undefined;
+
+    const targetAccountId = this.bankToActualAccountMap.get(identifier);
+    if (!targetAccountId || targetAccountId === sourceAccountId)
+      return undefined;
+
+    const transferPayeeId =
+      this.actualAccountToTransferPayeeId.get(targetAccountId);
+    if (transferPayeeId) {
+      logger(
+        `routing tx as transfer: source=${sourceAccountId} identifier=${identifier} -> target=${targetAccountId}`,
+      );
+    }
+    return transferPayeeId;
+  }
+
   private convertTransactionToActualFormat(
     tx: TransactionRow,
     actualAccountId: string,
   ): ImportTransactionEntity {
     const amount = actualApi.utils.amountToInteger(tx.chargedAmount);
+    const transferPayeeId = this.resolveTransferPayeeId(tx, actualAccountId);
 
     return {
       account: actualAccountId,
       date: new Date(tx.date).toISOString().split("T")[0],
       amount,
-      payee_name: tx.description,
+      payee: transferPayeeId,
+      payee_name: transferPayeeId ? undefined : tx.description,
       cleared: tx.status === TransactionStatuses.Completed,
       imported_id: hash(
         this.config.options.scraping.transactionHashType === "moneyman"
