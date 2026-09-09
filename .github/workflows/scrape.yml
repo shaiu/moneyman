@@ -31,12 +31,20 @@ jobs:
       - id: set-container-image
         run: echo "image=${{ env.REGISTRY }}/${{ steps.normalize-repository-name.outputs.repository }}:${{ github.event.inputs.containerTag || 'latest' }}" >> $GITHUB_OUTPUT
 
+      - name: Connect to tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
       - name: Pull container image
         run: docker pull ${{ steps.set-container-image.outputs.image }}
 
       - name: Run scraper
         run: >
           docker run --rm
+          --network host
           -e MONEYMAN_CONFIG
           -e MONEYMAN_BROWSER_COOKIES
           -e DEBUG
