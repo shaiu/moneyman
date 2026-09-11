@@ -24,6 +24,8 @@ env:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    env:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
     steps:
       - id: normalize-repository-name
         run: echo "repository=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
@@ -31,7 +33,10 @@ jobs:
       - id: set-container-image
         run: echo "image=${{ env.REGISTRY }}/${{ steps.normalize-repository-name.outputs.repository }}:${{ github.event.inputs.containerTag || 'latest' }}" >> $GITHUB_OUTPUT
 
+      # Skipped until the tailnet secrets exist, so scraping keeps working
+      # before the Actual migration's Phase 0 is done.
       - name: Connect to tailnet
+        if: env.TS_OAUTH_CLIENT_ID != ''
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
