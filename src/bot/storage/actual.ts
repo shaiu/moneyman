@@ -201,9 +201,11 @@ export class ActualBudgetStorage implements TransactionStorage {
         );
       }
     } catch (error) {
-      throw new Error(
-        `Failed to initialize Actual Budget: ${formatUnknownError(error)}`,
-      );
+      let message = formatUnknownError(error);
+      if (message.includes("network-failure")) {
+        message += ` (${await probeServer(actualConfig.serverUrl)})`;
+      }
+      throw new Error(`Failed to initialize Actual Budget: ${message}`);
     }
   }
 
@@ -256,5 +258,29 @@ export class ActualBudgetStorage implements TransactionStorage {
       ).toString(),
       notes: tx.memo,
     };
+  }
+}
+
+// @actual-app/api collapses every fetch failure into "network-failure" and
+// drops the underlying cause, which leaves a refused port, an unroutable
+// tailnet IP and a TLS name mismatch indistinguishable. Repeat the request
+// ourselves so the error that reaches Telegram names the actual cause.
+export async function probeServer(serverUrl: string): Promise<string> {
+  let target: URL;
+  try {
+    target = new URL("/info", serverUrl);
+  } catch {
+    return `serverUrl "${serverUrl}" is not a valid URL`;
+  }
+  try {
+    const res = await fetch(target, { signal: AbortSignal.timeout(10_000) });
+    return `${target.origin} answered HTTP ${res.status}`;
+  } catch (error) {
+    const cause = error instanceof Error ? error.cause : undefined;
+    const code =
+      cause && typeof cause === "object" && "code" in cause
+        ? `${String(cause.code)}: `
+        : "";
+    return `cannot reach ${target.origin}: ${code}${formatUnknownError(cause ?? error)}`;
   }
 }
