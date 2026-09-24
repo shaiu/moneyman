@@ -41,6 +41,12 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
+          # Actual runs as a Home Assistant add-on. HA's Tailscale add-on uses
+          # userspace networking, which accepts connections to its tailnet IP
+          # but never delivers them to the add-on's port. So the HA box
+          # advertises Actual's LAN address as a subnet route instead, and
+          # serverUrl points at that LAN address.
+          args: --accept-routes
 
       - name: Pull container image
         run: docker pull ${{ steps.set-container-image.outputs.image }}
