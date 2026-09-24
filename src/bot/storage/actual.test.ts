@@ -27,7 +27,7 @@ jest.mock("@actual-app/api", () => ({
 // Import after the mocks are registered so the module under test picks up the
 // mocked SDK.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { ActualBudgetStorage } = require("./actual.js");
+const { ActualBudgetStorage, probeServer } = require("./actual.js");
 
 const mkConfig = (accounts: Record<string, string>): MoneymanConfig => {
   const cfg = config();
@@ -206,5 +206,72 @@ describe("ActualBudgetStorage transfer routing by identifier", () => {
           args[0].includes("routing tx as transfer"),
       ),
     ).toBeDefined();
+  });
+});
+
+describe("ActualBudgetStorage init network failures", () => {
+  const fetchSpy = jest.spyOn(globalThis, "fetch");
+  afterAll(() => fetchSpy.mockRestore());
+
+  const initError = async () => {
+    const storage = new ActualBudgetStorage(
+      mkConfig({ acct: "actual-hapoalim-uuid" }),
+    );
+    return storage
+      .saveTransactions([transactionRow({ account: "acct" })], async () => {})
+      .then(
+        () => undefined,
+        (e: Error) => e,
+      );
+  };
+
+  it("appends the underlying connection error to network-failure", async () => {
+    mockInit.mockRejectedValue(
+      new Error("Authentication failed: network-failure"),
+    );
+    fetchSpy.mockRejectedValue(
+      new TypeError("fetch failed", {
+        cause: Object.assign(new Error("connect ETIMEDOUT 100.64.0.1:5006"), {
+          code: "ETIMEDOUT",
+        }),
+      }),
+    );
+
+    const error = await initError();
+
+    expect(error?.message).toBe(
+      "Failed to initialize Actual Budget: Authentication failed: network-failure " +
+        "(cannot reach http://actual.test: ETIMEDOUT: connect ETIMEDOUT 100.64.0.1:5006)",
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      new URL("http://actual.test/info"),
+      expect.anything(),
+    );
+  });
+
+  it("does not probe for non-network init errors", async () => {
+    mockInit.mockRejectedValue(
+      new Error("Authentication failed: invalid-password"),
+    );
+
+    const error = await initError();
+
+    expect(error?.message).toBe(
+      "Failed to initialize Actual Budget: Authentication failed: invalid-password",
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("reports the HTTP status when the server is reachable", async () => {
+    fetchSpy.mockResolvedValue(new Response("", { status: 502 }));
+    await expect(probeServer("http://actual.test")).resolves.toBe(
+      "http://actual.test answered HTTP 502",
+    );
+  });
+
+  it("reports an unparseable serverUrl", async () => {
+    await expect(probeServer("100.64.0.1:5006")).resolves.toBe(
+      'serverUrl "100.64.0.1:5006" is not a valid URL',
+    );
   });
 });
