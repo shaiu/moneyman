@@ -54,6 +54,7 @@ jobs:
           -e DEBUG
           -e TZ
           -e SEND_NEW_CONFIG_TO_TG
+          -e MONEYMAN_FAIL_ON_ERROR
           ${{ steps.set-container-image.outputs.image }}
         env:
           MONEYMAN_CONFIG: ${{ secrets.MONEYMAN_CONFIG_CAL_1 }}
@@ -61,3 +62,4 @@ jobs:
           DEBUG: ${{ github.event.inputs.DEBUG || '' }}
           TZ: "Asia/Jerusalem"
           SEND_NEW_CONFIG_TO_TG: ${{ github.event.inputs.sendNewConfigToTg }}
+          MONEYMAN_FAIL_ON_ERROR: "true"
