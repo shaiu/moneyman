@@ -14,6 +14,7 @@ import {
   NotificationOptionsSchema,
   BooleanEnvVarSchema,
 } from "./config.schema.js";
+import { recordFailure } from "./utils/runOutcome.js";
 
 export type { MoneymanConfig } from "./config.schema.js";
 
@@ -36,6 +37,9 @@ function createConfig() {
         "Failed to parse MONEYMAN_CONFIG. Unable to continue with invalid configuration",
         error,
       );
+      // The defaults below enable localJson, so without this a broken secret
+      // scrapes nothing and the run still exits green.
+      recordFailure("config", error);
       void sendConfigError(error);
     }
   }
@@ -51,6 +55,9 @@ function createConfig() {
         "Failed to parse config file from MONEYMAN_CONFIG_PATH. Unable to continue with invalid configuration",
         error,
       );
+      // The defaults below enable localJson, so without this a broken secret
+      // scrapes nothing and the run still exits green.
+      recordFailure("config", error);
       void sendConfigError(error);
     }
   }
@@ -58,6 +65,7 @@ function createConfig() {
   logToPublicLog(
     "No configuration found. Please provide MONEYMAN_CONFIG or MONEYMAN_CONFIG_PATH environment variable.",
   );
+  recordFailure("config", new Error("No configuration found"));
 
   return MoneymanConfigSchema.parse({});
 }
