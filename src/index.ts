@@ -11,11 +11,13 @@ import { runWithStorage } from "./bot/index.js";
 import { sendFailureScreenShots } from "./utils/failureScreenshot.js";
 import { monitorNodeConnections } from "./security/domains.js";
 import { getExternalIp, logRunMetadata } from "./runnerMetadata.js";
+import { exitCode, recordFailure, summary } from "./utils/runOutcome.js";
 
 const logger = createLogger("main");
 console.log("Starting...");
 
 process.on("uncaughtException", (err, origin) => {
+  recordFailure("uncaught", err);
   console.error("uncaughtException, sending error");
   sendError(`
     Caught exception: ${err}
@@ -30,8 +32,10 @@ await sendConfigToTelegramIfRequested();
 await run();
 await sendAndDeleteLogFile();
 
-// kill internal browsers if stuck
-process.exit(0);
+for (const line of summary()) logger(line);
+// Exit explicitly to kill internal browsers if stuck. Non-zero only when
+// MONEYMAN_FAIL_ON_ERROR is set and the run failed, so GitHub alerts.
+process.exit(exitCode());
 
 async function runScraper(hooks: RunnerHooks) {
   try {
@@ -59,6 +63,7 @@ async function runScraper(hooks: RunnerHooks) {
     await logRunMetadata();
   } catch (e) {
     logger("Error", e);
+    recordFailure("scraper", e);
     await hooks.onError(e);
   }
 }
@@ -68,6 +73,7 @@ async function run() {
     logger("Running with storage");
     await runWithStorage(runScraper);
   } catch (error) {
+    recordFailure("run", error);
     logger(error);
   }
 }
