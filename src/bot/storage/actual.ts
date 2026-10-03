@@ -91,6 +91,7 @@ export class ActualBudgetStorage implements TransactionStorage {
     );
 
     try {
+      const failedAccounts: string[] = [];
       for (const [
         actualAccountId,
         transactions,
@@ -120,6 +121,9 @@ export class ActualBudgetStorage implements TransactionStorage {
           logger(
             `Errors importing transactions: ${JSON.stringify(importResponse.errors)}`,
           );
+          failedAccounts.push(
+            `"${accountName}": ${JSON.stringify(importResponse.errors)}`,
+          );
           continue;
         }
 
@@ -128,6 +132,14 @@ export class ActualBudgetStorage implements TransactionStorage {
         );
         stats.added += importResponse.added?.length || 0;
         stats.existing += importResponse.updated?.length || 0;
+      }
+
+      // Keep importing the other accounts, but don't report success when one
+      // failed: that was a silent lost write before.
+      if (failedAccounts.length > 0) {
+        throw new Error(
+          `Failed to import to Actual for account(s) ${failedAccounts.join(", ")}`,
+        );
       }
 
       logger("transactions sent to Actual successfully!");
