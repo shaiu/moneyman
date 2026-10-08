@@ -753,3 +753,66 @@ describe("BooleanEnvVarSchema", () => {
     expect(result).toBe(expected);
   });
 });
+
+// A broken config secret falls back to the defaults, which enable localJson,
+// so the run would scrape nothing and exit green. It must turn the run red.
+describe("config failures are recorded for the run outcome", () => {
+  let originalEnv: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnv = process.env;
+    jest.resetModules();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  async function loadWith(env: Record<string, string | undefined>) {
+    process.env = {
+      ...originalEnv,
+      MONEYMAN_CONFIG: undefined,
+      MONEYMAN_CONFIG_PATH: undefined,
+      MONEYMAN_FAIL_ON_ERROR: "true",
+      ...env,
+    };
+    await import("./config.js");
+    const { exitCode, summary } = await import("./utils/runOutcome.js");
+    return { exitCode: exitCode(), summary: summary() };
+  }
+
+  it("records unparseable MONEYMAN_CONFIG", async () => {
+    const outcome = await loadWith({ MONEYMAN_CONFIG: "{bad" });
+    expect(outcome.exitCode).toBe(1);
+    expect(outcome.summary[0]).toContain("[config]");
+  });
+
+  it("records MONEYMAN_CONFIG that fails the schema", async () => {
+    const outcome = await loadWith({
+      MONEYMAN_CONFIG: JSON.stringify({ accounts: "not-a-list" }),
+    });
+    expect(outcome.exitCode).toBe(1);
+  });
+
+  it("records an unreadable MONEYMAN_CONFIG_PATH", async () => {
+    const outcome = await loadWith({
+      MONEYMAN_CONFIG_PATH: "/nonexistent/moneyman.jsonc",
+    });
+    expect(outcome.exitCode).toBe(1);
+  });
+
+  it("records a missing config", async () => {
+    const outcome = await loadWith({});
+    expect(outcome.exitCode).toBe(1);
+  });
+
+  it("does not record a valid config", async () => {
+    const outcome = await loadWith({
+      MONEYMAN_CONFIG: JSON.stringify({
+        accounts: [],
+        storage: { localJson: { enabled: true } },
+      }),
+    });
+    expect(outcome.exitCode).toBe(0);
+  });
+});

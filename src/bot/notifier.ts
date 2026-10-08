@@ -26,7 +26,9 @@ if (bot && telegramConfig) {
   assignDeprecationHandler((messageId, message) => {
     if (!config.options.scraping.hiddenDeprecations?.includes(messageId)) {
       logger(`Sending deprecation message: ${messageId}`);
-      void send(message);
+      send(message).catch((e) =>
+        logger("Failed to send deprecation message", e),
+      );
     }
   });
 }
@@ -154,14 +156,26 @@ function canIgnoreTelegramError(e: unknown) {
   );
 }
 
-export function sendError(message: unknown, caller: string = "") {
-  return send(
-    `${caller}\n❌ ${String(
-      message instanceof Error
-        ? `${message.message}\n${message.stack}`
-        : formatUnknownError(message),
-    )}`.trim(),
-  );
+/**
+ * Reports an error to Telegram. Never rejects: callers fire it without
+ * awaiting, and a rejection would reach the uncaughtException handler and turn
+ * the run red for a Telegram hiccup rather than a lost write.
+ */
+export async function sendError(
+  message: unknown,
+  caller: string = "",
+): Promise<void> {
+  try {
+    await send(
+      `${caller}\n❌ ${String(
+        message instanceof Error
+          ? `${message.message}\n${message.stack}`
+          : formatUnknownError(message),
+      )}`.trim(),
+    );
+  } catch (e) {
+    logger("Failed to send error to Telegram", e);
+  }
 }
 
 /**

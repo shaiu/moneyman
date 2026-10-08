@@ -11,6 +11,7 @@ import {
 } from "./notifier.js";
 import { runContextStore } from "../utils/asyncContext.js";
 import { randomUUID } from "crypto";
+import { recordFailure } from "../utils/runOutcome.js";
 
 const logger = createLogger("bot");
 
@@ -18,6 +19,7 @@ export async function runWithStorage(runScraper: Runner) {
   const message = await send("Starting...");
   if (!storages.length) {
     logger("No storages found, aborting");
+    recordFailure("config", new Error("No storages configured"));
     await editMessage(message?.message_id, "No storages found, aborting");
     return;
   }

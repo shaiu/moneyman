@@ -23,6 +23,7 @@ import { YNABStorage } from "./ynab.js";
 import { SqlStorage } from "./sql.js";
 import { MoneymanDashStorage } from "./moneyman.js";
 import { config } from "../../config.js";
+import { recordFailure } from "../../utils/runOutcome.js";
 
 const baseLogger = createLogger("storage");
 
@@ -39,8 +40,11 @@ export const storages = [
   new MoneymanDashStorage(config),
 ].filter((s) => s.canSave());
 
-export async function saveResults(results: Array<AccountScrapeResult>) {
-  if (storages.length === 0) {
+export async function saveResults(
+  results: Array<AccountScrapeResult>,
+  targetStorages: Array<TransactionStorage> = storages,
+) {
+  if (targetStorages.length === 0) {
     await send("No storages found, skipping save");
     return;
   }
@@ -65,12 +69,13 @@ export async function saveResults(results: Array<AccountScrapeResult>) {
   };
 
   await parallel(
-    storages.map((storage: TransactionStorage) => async () => {
+    targetStorages.map((storage: TransactionStorage) => async () => {
       const { name } = storage.constructor;
       const logger = baseLogger.extend(name);
       const steps: Array<Timer> = [];
 
       return loggerContextStore.run({ prefix: `[${name}]` }, async () => {
+        let saved = false;
         try {
           logger(`saving ${txns.length} transactions`);
           const message = await send(saving(name));
@@ -84,6 +89,7 @@ export async function saveResults(results: Array<AccountScrapeResult>) {
             },
             context,
           );
+          saved = true;
           const duration = performance.now() - start;
           steps.at(-1)?.end();
           logger(`saved`);
@@ -94,6 +100,8 @@ export async function saveResults(results: Array<AccountScrapeResult>) {
         } catch (e) {
           logger(`error saving transactions`, e);
           sendError(e, `saveTransactions::${name}`);
+          // A Telegram error after the save succeeded is not a lost write.
+          if (!saved) recordFailure(`storage:${name}`, e);
         }
       });
     }),

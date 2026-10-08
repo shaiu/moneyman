@@ -16,6 +16,11 @@ on:
         description: "Debug logging namespace (e.g., 'moneyman:*')"
         required: false
         default: "moneyman:*"
+      simulateActualOutage:
+        description: "Alert drill: skip the tailnet step so the Actual write fails"
+        type: boolean
+        required: false
+        default: false
   schedule:
     - cron: "5 07,19 * * *"
 env:
@@ -35,7 +40,7 @@ jobs:
       # Skipped until the tailnet secrets exist, so scraping keeps working
       # before the Actual migration's Phase 0 is done.
       - name: Connect to tailnet
-        if: env.TS_OAUTH_CLIENT_ID != ''
+        if: env.TS_OAUTH_CLIENT_ID != '' && github.event.inputs.simulateActualOutage != 'true'
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
@@ -54,6 +59,7 @@ jobs:
           -e DEBUG
           -e TZ
           -e SEND_NEW_CONFIG_TO_TG
+          -e MONEYMAN_FAIL_ON_ERROR
           ${{ steps.set-container-image.outputs.image }}
         env:
           MONEYMAN_CONFIG: ${{ secrets.MONEYMAN_CONFIG_MAX }}
@@ -61,3 +67,4 @@ jobs:
           DEBUG: ${{ github.event.inputs.DEBUG || '' }}
           TZ: "Asia/Jerusalem"
           SEND_NEW_CONFIG_TO_TG: ${{ github.event.inputs.sendNewConfigToTg }}
+          MONEYMAN_FAIL_ON_ERROR: "true"

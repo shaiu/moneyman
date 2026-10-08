@@ -275,3 +275,54 @@ describe("ActualBudgetStorage init network failures", () => {
     );
   });
 });
+
+describe("ActualBudgetStorage per-account import errors", () => {
+  const twoAccounts = () =>
+    mkConfig({
+      "hapoalim-acct": "actual-hapoalim-uuid",
+      "8339": "actual-cal8339-uuid",
+    });
+  const txns = () => [
+    transactionRow({ account: "hapoalim-acct", hash: "h1", uniqueId: "u1" }),
+    transactionRow({ account: "8339", hash: "h2", uniqueId: "u2" }),
+  ];
+  const onProgress = async () => {};
+
+  it("still imports the other accounts, then throws naming the failed one", async () => {
+    mockImportTransactions.mockImplementation((accountId: string) =>
+      accountId === "actual-hapoalim-uuid"
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve({ added: ["x"], updated: [], errors: [] }),
+    );
+    const storage = new ActualBudgetStorage(twoAccounts());
+
+    await expect(storage.saveTransactions(txns(), onProgress)).rejects.toThrow(
+      /Failed to import to Actual for account\(s\) "Hapoalim".*boom/,
+    );
+    expect(mockImportTransactions).toHaveBeenCalledWith(
+      "actual-cal8339-uuid",
+      expect.any(Array),
+    );
+    expect(mockShutdown).toHaveBeenCalled();
+  });
+
+  it("throws when Actual resolves with errors instead of rejecting", async () => {
+    mockImportTransactions.mockResolvedValue({
+      added: [],
+      updated: [],
+      errors: ["account is closed"],
+    });
+    const storage = new ActualBudgetStorage(twoAccounts());
+
+    await expect(storage.saveTransactions(txns(), onProgress)).rejects.toThrow(
+      /"Hapoalim".*account is closed.*"Cal8339".*account is closed/,
+    );
+  });
+
+  it("does not throw when every account imports", async () => {
+    const storage = new ActualBudgetStorage(twoAccounts());
+    await expect(
+      storage.saveTransactions(txns(), onProgress),
+    ).resolves.toBeDefined();
+  });
+});
