@@ -16,6 +16,14 @@ on:
         description: "Debug logging namespace (e.g., 'moneyman:*')"
         required: false
         default: "moneyman:*"
+      # The drill only proves anything if the run has transactions to write:
+      # with none, the save is skipped and Actual is never contacted. Run it on
+      # a workflow whose last run scraped transactions.
+      simulateActualOutage:
+        description: "Alert drill: skip the tailnet step so the Actual write fails"
+        type: boolean
+        required: false
+        default: false
   schedule:
     # In Israel: [12:05, 00:05] or [13:05, 01:05] on DST
     - cron: "5 10,22 * * *"
@@ -36,7 +44,7 @@ jobs:
       # Skipped until the tailnet secrets exist, so scraping keeps working
       # before the Actual migration's Phase 0 is done.
       - name: Connect to tailnet
-        if: env.TS_OAUTH_CLIENT_ID != ''
+        if: env.TS_OAUTH_CLIENT_ID != '' && github.event.inputs.simulateActualOutage != 'true'
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}

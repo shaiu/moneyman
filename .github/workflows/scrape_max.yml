@@ -16,6 +16,9 @@ on:
         description: "Debug logging namespace (e.g., 'moneyman:*')"
         required: false
         default: "moneyman:*"
+      # The drill only proves anything if the run has transactions to write:
+      # with none, the save is skipped and Actual is never contacted. Run it on
+      # a workflow whose last run scraped transactions.
       simulateActualOutage:
         description: "Alert drill: skip the tailnet step so the Actual write fails"
         type: boolean
