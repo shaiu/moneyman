@@ -1,0 +1,41 @@
+name: Scrape_Watchdog
+
+# Alerts (a red run, so GitHub emails) when an account has had no successful
+# scrape within MAX_AGE_HOURS. A failed bank login leaves the scrape run green
+# on purpose; this catches logins that keep failing, and schedules that stop.
+# Edit EXPECTED when an account is added or removed: an account missing from
+# it is not watched.
+on:
+  schedule:
+    # 07:30 and 19:30 Israel time in summer (an hour earlier in winter).
+    - cron: "30 4,16 * * *"
+  workflow_dispatch:
+    inputs:
+      maxAgeHours:
+        description: "Override the 30h limit (drill: 1 makes every account look stale)"
+        required: false
+        default: ""
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Check every account scraped recently
+        run: node src/scripts/scrape-watchdog.ts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MAX_AGE_HOURS: ${{ github.event.inputs.maxAgeHours || '30' }}
+          EXPECTED: |
+            Scrape_Hapoalim: hapoalim
+            Scrape_Cal_1: visaCal
+            Scrape_Cal_2: visaCal
+            Scrape_Max: max
