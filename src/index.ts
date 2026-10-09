@@ -12,6 +12,7 @@ import { sendFailureScreenShots } from "./utils/failureScreenshot.js";
 import { monitorNodeConnections } from "./security/domains.js";
 import { getExternalIp, logRunMetadata } from "./runnerMetadata.js";
 import { exitCode, recordFailure, summary } from "./utils/runOutcome.js";
+import { writeScrapeAnnotations } from "./utils/scrapeAnnotations.js";
 
 const logger = createLogger("main");
 console.log("Starting...");
@@ -55,6 +56,8 @@ async function runScraper(hooks: RunnerHooks) {
       },
     );
     logger("Scraping ended");
+    // Before the save, so a failed save still leaves the scrape marks.
+    writeScrapeAnnotations(results);
     await Promise.all([
       hooks.onResultsReady(results),
       sendFailureScreenShots(hooks.failureScreenshotsHandler),
