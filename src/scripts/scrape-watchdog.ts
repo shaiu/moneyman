@@ -8,6 +8,8 @@
  * imports only node: modules and uses only erasable TypeScript.
  */
 
+import { appendFileSync } from "node:fs";
+
 export interface Expected {
   workflow: string;
   companyId: string;
@@ -151,4 +153,120 @@ export function formatSummary(
     ...rows,
     "",
   ].join("\n");
+}
+
+const LOOKBACK_MS = 7 * 24 * HOUR_MS;
+
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
+}
+
+async function gh<T>(path: string, token: string): Promise<T> {
+  const api = process.env.GITHUB_API_URL ?? "https://api.github.com";
+  const res = await fetch(`${api}${path}`, {
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/vnd.github+json",
+      "x-github-api-version": "2022-11-28",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`GitHub API ${res.status} for ${path}`);
+  }
+  return (await res.json()) as T;
+}
+
+/** Every run of the expected workflows since `since`, with its scrape-ok marks. */
+async function observe(
+  repo: string,
+  token: string,
+  expected: Expected[],
+  since: Date,
+): Promise<Observation[]> {
+  const { workflows } = await gh<{
+    workflows: Array<{ id: number; name: string }>;
+  }>(`/repos/${repo}/actions/workflows?per_page=100`, token);
+
+  const observations: Observation[] = [];
+  for (const name of new Set(expected.map((e) => e.workflow))) {
+    const workflow = workflows.find((w) => w.name === name);
+    if (!workflow) {
+      throw new Error(`No workflow named "${name}" in ${repo}`);
+    }
+    const created = encodeURIComponent(`>=${since.toISOString()}`);
+    const { workflow_runs } = await gh<{
+      workflow_runs: Array<{ id: number; created_at: string }>;
+    }>(
+      `/repos/${repo}/actions/workflows/${workflow.id}/runs?per_page=100&created=${created}`,
+      token,
+    );
+    for (const run of workflow_runs) {
+      const { jobs } = await gh<{ jobs: Array<{ id: number }> }>(
+        `/repos/${repo}/actions/runs/${run.id}/jobs?per_page=100`,
+        token,
+      );
+      const annotations: Annotation[] = [];
+      for (const job of jobs) {
+        annotations.push(
+          ...(await gh<Annotation[]>(
+            `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`,
+            token,
+          )),
+        );
+      }
+      observations.push({
+        workflow: name,
+        runId: run.id,
+        createdAt: new Date(run.created_at),
+        oks: oksFromAnnotations(annotations),
+      });
+    }
+  }
+  return observations;
+}
+
+async function main(): Promise<void> {
+  const repo = requireEnv("GITHUB_REPOSITORY");
+  const token = requireEnv("GITHUB_TOKEN");
+  const expected = parseExpected(requireEnv("EXPECTED"));
+  const maxAgeHours = parseMaxAgeHours(process.env.MAX_AGE_HOURS);
+  const now = new Date();
+
+  const observations = await observe(
+    repo,
+    token,
+    expected,
+    new Date(now.getTime() - LOOKBACK_MS),
+  );
+  const problems = findStale(expected, observations, now, maxAgeHours);
+
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (summaryPath) {
+    appendFileSync(
+      summaryPath,
+      formatSummary(expected, observations, problems),
+    );
+  }
+  for (const problem of problems) {
+    console.log(
+      `::error title=scrape-stale::${formatProblem(problem, maxAgeHours)}`,
+    );
+  }
+  console.log(
+    problems.length
+      ? `${problems.length} of ${expected.length} account(s) stale`
+      : `all ${expected.length} accounts scraped successfully within ${maxAgeHours}h`,
+  );
+  process.exitCode = problems.length ? 1 : 0;
+}
+
+// Run only when executed directly, not when jest imports the functions above.
+if (process.argv[1]?.endsWith("scrape-watchdog.ts")) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`::error title=scrape-watchdog::${message}`);
+    process.exitCode = 1;
+  });
 }
