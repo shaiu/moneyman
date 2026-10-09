@@ -63,6 +63,7 @@ jobs:
           -e TZ
           -e SEND_NEW_CONFIG_TO_TG
           -e MONEYMAN_FAIL_ON_ERROR
+          -e MONEYMAN_GITHUB_ANNOTATIONS
           ${{ steps.set-container-image.outputs.image }}
         env:
           MONEYMAN_CONFIG: ${{ secrets.MONEYMAN_CONFIG_CAL_2 }}
@@ -71,3 +72,4 @@ jobs:
           TZ: "Asia/Jerusalem"
           SEND_NEW_CONFIG_TO_TG: ${{ github.event.inputs.sendNewConfigToTg }}
           MONEYMAN_FAIL_ON_ERROR: "true"
+          MONEYMAN_GITHUB_ANNOTATIONS: "true"
