@@ -329,15 +329,9 @@ describe("ActualBudgetStorage per-account import errors", () => {
 
 describe("ActualBudgetStorage transaction date", () => {
   // Scrapers parse a bank's calendar date as local midnight in the process's
-  // own time zone (the workflows set TZ=Asia/Jerusalem). The date sent to
-  // Actual must be that same calendar day, not the UTC day before it.
-  const originalTZ = process.env.TZ;
-  beforeAll(() => {
-    process.env.TZ = "Asia/Jerusalem";
-  });
-  afterAll(() => {
-    process.env.TZ = originalTZ;
-  });
+  // own time zone (jest.config.js and the workflows set TZ=Asia/Jerusalem).
+  // The date sent to Actual must be that same calendar day, not the UTC day
+  // before it.
 
   const sentDate = async (date: string) => {
     const storage = new ActualBudgetStorage(
