@@ -326,3 +326,37 @@ describe("ActualBudgetStorage per-account import errors", () => {
     ).resolves.toBeDefined();
   });
 });
+
+describe("ActualBudgetStorage transaction date", () => {
+  // Scrapers parse a bank's calendar date as local midnight in the process's
+  // own time zone (the workflows set TZ=Asia/Jerusalem). The date sent to
+  // Actual must be that same calendar day, not the UTC day before it.
+  const originalTZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Asia/Jerusalem";
+  });
+  afterAll(() => {
+    process.env.TZ = originalTZ;
+  });
+
+  const sentDate = async (date: string) => {
+    const storage = new ActualBudgetStorage(
+      mkConfig({ "hapoalim-acct": "actual-hapoalim-uuid" }),
+    );
+    await storage.saveTransactions(
+      [transactionRow({ account: "hapoalim-acct", date })],
+      async () => {},
+    );
+    return mockImportTransactions.mock.calls[0][1][0].date;
+  };
+
+  it("keeps the local calendar day for a summer (UTC+3) midnight", async () => {
+    // 2026-10-11 00:00 IDT, as the Hapoalim scraper reports it.
+    expect(await sentDate("2026-10-10T21:00:00.000Z")).toBe("2026-10-11");
+  });
+
+  it("keeps the local calendar day for a winter (UTC+2) midnight", async () => {
+    // 2026-12-15 00:00 IST.
+    expect(await sentDate("2026-12-14T22:00:00.000Z")).toBe("2026-12-15");
+  });
+});
