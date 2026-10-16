@@ -1,3 +1,8 @@
+// Run tests in the time zone the scrape workflows use. Set here, before Jest
+// spawns its workers: a test file's process.env is a sandboxed copy, so
+// assigning TZ inside a test never reaches the date code.
+process.env.TZ = "Asia/Jerusalem";
+
 /** @type {import('jest').Config} */
 export default {
   transform: {

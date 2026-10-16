@@ -1,4 +1,5 @@
 import * as actualApi from "@actual-app/api";
+import { format, parseISO } from "date-fns";
 import { hash } from "hash-it";
 import { TransactionStatuses } from "israeli-bank-scrapers/lib/transactions.js";
 import assert from "node:assert";
@@ -258,7 +259,9 @@ export class ActualBudgetStorage implements TransactionStorage {
 
     return {
       account: actualAccountId,
-      date: new Date(tx.date).toISOString().split("T")[0],
+      // Format in local time: scrapers report a bank date as local midnight,
+      // which toISOString() would turn into the previous day in UTC.
+      date: format(parseISO(tx.date), "yyyy-MM-dd"),
       amount,
       payee: transferPayeeId,
       payee_name: transferPayeeId ? undefined : tx.description,
