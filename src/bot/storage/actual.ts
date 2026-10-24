@@ -217,6 +217,8 @@ export class ActualBudgetStorage implements TransactionStorage {
       let message = formatUnknownError(error);
       if (message.includes("network-failure")) {
         message += ` (${await probeServer(actualConfig.serverUrl)})`;
+      } else if (message.includes("No budget file is open")) {
+        message += ` (${await explainUnopenedBudget(actualConfig)})`;
       }
       throw new Error(`Failed to initialize Actual Budget: ${message}`);
     }
@@ -273,6 +275,51 @@ export class ActualBudgetStorage implements TransactionStorage {
       ).toString(),
       notes: tx.memo,
     };
+  }
+}
+
+// downloadBudget() discards the error from opening the budget it just
+// downloaded, so a budget the client cannot open surfaces only as "No budget
+// file is open" on the next call. The usual cause is the server running a newer
+// Actual release whose migrations this @actual-app/api does not know. Open the
+// downloaded copy again, which does throw the reason, and name the server's
+// version beside it.
+export async function explainUnopenedBudget({
+  budgetId,
+  serverUrl,
+}: {
+  budgetId: string;
+  serverUrl: string;
+}): Promise<string> {
+  let reason: string;
+  try {
+    const local = (await actualApi.getBudgets()).find(
+      (b) => b.groupId === budgetId && b.id,
+    );
+    if (!local?.id) {
+      reason = `budget "${budgetId}" was not downloaded`;
+    } else {
+      await actualApi.loadBudget(local.id);
+      reason = "opening the downloaded budget again succeeded";
+    }
+  } catch (error) {
+    reason = formatUnknownError(error);
+  }
+  return `${reason}; ${await serverVersion(serverUrl)}`;
+}
+
+async function serverVersion(serverUrl: string): Promise<string> {
+  try {
+    const res = await fetch(new URL("/info", serverUrl), {
+      signal: AbortSignal.timeout(10_000),
+    });
+    const info = (await res.json()) as { build?: { version?: string } };
+    const version = info.build?.version;
+    return version
+      ? `server runs Actual ${version}; @actual-app/api must be at least that version`
+      : "server did not report its version";
+  } catch (error) {
+    return `server version unknown: ${formatUnknownError(error)}`;
   }
 }
 

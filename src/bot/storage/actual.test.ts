@@ -13,6 +13,8 @@ const mockGetAccounts = jest.fn();
 const mockGetPayees = jest.fn();
 const mockImportTransactions = jest.fn();
 const mockShutdown = jest.fn();
+const mockGetBudgets = jest.fn();
+const mockLoadBudget = jest.fn();
 
 jest.mock("@actual-app/api", () => ({
   init: (...args: unknown[]) => mockInit(...args),
@@ -21,6 +23,8 @@ jest.mock("@actual-app/api", () => ({
   getPayees: (...args: unknown[]) => mockGetPayees(...args),
   importTransactions: (...args: unknown[]) => mockImportTransactions(...args),
   shutdown: (...args: unknown[]) => mockShutdown(...args),
+  getBudgets: (...args: unknown[]) => mockGetBudgets(...args),
+  loadBudget: (...args: unknown[]) => mockLoadBudget(...args),
   utils: { amountToInteger: (n: number) => Math.round(n * 100) },
 }));
 
@@ -260,6 +264,31 @@ describe("ActualBudgetStorage init network failures", () => {
       "Failed to initialize Actual Budget: Authentication failed: invalid-password",
     );
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("names why the downloaded budget would not open", async () => {
+    mockGetAccounts.mockRejectedValue({
+      type: "APIError",
+      message: "No budget file is open",
+    });
+    mockGetBudgets.mockResolvedValue([
+      { id: "Budget-abc", groupId: "test-sync-id", name: "Budget" },
+    ]);
+    mockLoadBudget.mockRejectedValue(
+      new Error("This budget cannot be loaded with this version of the app."),
+    );
+    fetchSpy.mockResolvedValue(
+      Response.json({ build: { name: "Actual", version: "26.10.0" } }),
+    );
+
+    const error = await initError();
+
+    expect(mockLoadBudget).toHaveBeenCalledWith("Budget-abc");
+    expect(error?.message).toBe(
+      "Failed to initialize Actual Budget: { type: 'APIError', message: 'No budget file is open' } " +
+        "(This budget cannot be loaded with this version of the app.; " +
+        "server runs Actual 26.10.0; @actual-app/api must be at least that version)",
+    );
   });
 
   it("reports the HTTP status when the server is reachable", async () => {
