@@ -9,6 +9,8 @@ jest.mock("../../utils/logger.js", () => ({
 
 const mockInit = jest.fn();
 const mockDownloadBudget = jest.fn();
+const mockGetBudgets = jest.fn();
+const mockLoadBudget = jest.fn();
 const mockGetAccounts = jest.fn();
 const mockGetPayees = jest.fn();
 const mockImportTransactions = jest.fn();
@@ -17,6 +19,8 @@ const mockShutdown = jest.fn();
 jest.mock("@actual-app/api", () => ({
   init: (...args: unknown[]) => mockInit(...args),
   downloadBudget: (...args: unknown[]) => mockDownloadBudget(...args),
+  getBudgets: (...args: unknown[]) => mockGetBudgets(...args),
+  loadBudget: (...args: unknown[]) => mockLoadBudget(...args),
   getAccounts: (...args: unknown[]) => mockGetAccounts(...args),
   getPayees: (...args: unknown[]) => mockGetPayees(...args),
   importTransactions: (...args: unknown[]) => mockImportTransactions(...args),
@@ -46,6 +50,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockInit.mockResolvedValue(undefined);
   mockDownloadBudget.mockResolvedValue(undefined);
+  mockGetBudgets.mockResolvedValue([
+    { id: "local-budget", groupId: "test-sync-id", cloudFileId: "cloud" },
+    { groupId: "test-sync-id", cloudFileId: "cloud", state: "remote" },
+  ]);
+  mockLoadBudget.mockResolvedValue(undefined);
   mockShutdown.mockResolvedValue(undefined);
   mockGetAccounts.mockResolvedValue([
     { id: "actual-hapoalim-uuid", name: "Hapoalim" },
@@ -260,6 +269,22 @@ describe("ActualBudgetStorage init network failures", () => {
       "Failed to initialize Actual Budget: Authentication failed: invalid-password",
     );
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("surfaces why the downloaded budget did not load", async () => {
+    mockLoadBudget.mockRejectedValue(
+      new Error(
+        "This budget cannot be loaded with this version of the app. Make sure the app is up-to-date.",
+      ),
+    );
+
+    const error = await initError();
+
+    expect(mockLoadBudget).toHaveBeenCalledWith("local-budget");
+    expect(error?.message).toBe(
+      "Failed to initialize Actual Budget: This budget cannot be loaded with this version of the app. Make sure the app is up-to-date.",
+    );
+    expect(mockGetAccounts).not.toHaveBeenCalled();
   });
 
   it("reports the HTTP status when the server is reachable", async () => {

@@ -173,6 +173,7 @@ export class ActualBudgetStorage implements TransactionStorage {
       });
 
       await actualApi.downloadBudget(actualConfig.budgetId);
+      await ensureBudgetLoaded(actualConfig.budgetId);
 
       const actualAccounts = await actualApi.getAccounts();
       const validActualAccountIds = new Set(actualAccounts.map((a) => a.id));
@@ -273,6 +274,19 @@ export class ActualBudgetStorage implements TransactionStorage {
       ).toString(),
       notes: tx.memo,
     };
+  }
+}
+
+// downloadBudget ignores the result of its final load, so a budget that fails
+// to open (e.g. "out-of-sync-migrations" after a newer Actual client migrated
+// the file) surfaces later as the meaningless "No budget file is open".
+// loadBudget does throw the reason, and is a no-op when the budget is open.
+async function ensureBudgetLoaded(syncId: string) {
+  const local = (await actualApi.getBudgets()).find(
+    (b) => b.groupId === syncId && b.id,
+  );
+  if (local?.id) {
+    await actualApi.loadBudget(local.id);
   }
 }
 
