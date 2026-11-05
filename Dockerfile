@@ -1,4 +1,4 @@
-FROM node:25 AS builder
+FROM node:24 AS builder
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
@@ -16,7 +16,7 @@ RUN npm run build && \
     npm cache clean --force && \
     rm -rf src
 
-FROM node:25-slim AS runner
+FROM node:24-slim AS runner
 
 ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
@@ -24,7 +24,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        chromium libnss3 \
+        ca-certificates chromium libnss3 \
         fonts-noto-core fonts-noto-unhinted \
         libatk-bridge2.0-0 libgtk-3-0 libdrm2 libgbm1 \
         libx11-xcb1 libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 \
