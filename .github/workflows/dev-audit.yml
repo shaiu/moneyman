@@ -1,0 +1,72 @@
+# Detects a commit that reached main WITHOUT a merged PR (ausie spec
+# 2026-10-26-dev-lane-design.md §5). This repo is private on a free plan, so
+# GitHub offers no branch protection; the dev agent's guard hook and its
+# scripts (which only write dev/* branches) are the prevention, and this is the
+# detection. It checks every commit, whoever wrote it: a commit made with the
+# dev agent's PAT outside its scripts carries the token owner's identity, so an
+# author filter would not see the one push this exists to catch. A commit that
+# came through a merged PR is not an alarm, nor is the Actions bot's own.
+# Every commit of the push is read from the compare API, not the push
+# payload, which lists at most 20.
+#
+# The dev agent's token has Workflows: none, so it cannot edit this file. On
+# eazy-moments it is also excluded from the ci-fixer (ausie
+# mcp/src/cifix/repos.json, which mirrors this name in unownedWorkflowNames).
+# The run block is tested in ausie scripts/dev-audit.test.mjs.
+name: dev audit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Check this one commit (for testing the alert)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every commit came through a merged PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+          DISPATCH_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || '' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DISPATCH_SHA" ]; then
+            shas="$DISPATCH_SHA"
+          elif [ -z "${BEFORE//0/}" ]; then
+            shas="$AFTER"
+          else
+            shas=$(gh api "repos/$REPO/compare/$BEFORE...$AFTER" --paginate --jq '.commits[].sha')
+          fi
+          bad=""
+          for sha in $shas; do
+            login=$(gh api "repos/$REPO/commits/$sha" --jq '.author.login // ""')
+            [ "$login" = "github-actions[bot]" ] && continue
+            merged=$(gh api "repos/$REPO/commits/$sha/pulls" --jq '[.[] | select(.merged_at != null)] | length')
+            [ "$merged" -gt 0 ] || bad="$bad $sha"
+          done
+          if [ -z "$bad" ]; then echo "no commits without a merged PR"; exit 0; fi
+          msg="🚨 A commit reached $REPO main without a merged PR:$bad — https://github.com/$REPO/actions/runs/$GITHUB_RUN_ID"
+          echo "$msg"
+          echo "::error::$msg"
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -fsS -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+              --data-urlencode "chat_id=$TELEGRAM_CHAT_ID" --data-urlencode "text=$msg" > /dev/null
+          else
+            echo "::error::TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are not set; this alert reached only the Actions tab"
+          fi
+          exit 1
