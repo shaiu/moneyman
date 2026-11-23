@@ -1,0 +1,22 @@
+diff --git a/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js b/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
+index 618bf63..8783ef9 100644
+--- a/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
++++ b/node_modules/israeli-bank-scrapers/lib/helpers/fetch.js
+@@ -45,7 +45,16 @@ async function fetchPost(url, data, extraHeaders = {}) {
+     body: JSON.stringify(data)
+   };
+   const result = await fetch(url, request);
+-  return result.json();
++  const text = await result.text();
++  assertAutomationNotBlocked(result.status, text, url);
++  try {
++    // Any status: callers read JSON error bodies (e.g. statusCode/title)
++    return JSON.parse(text);
++  } catch {
++    // fall through: report what came back instead of a bare JSON parse error
++  }
++  const contentType = result.headers.get('content-type') || 'unknown content type';
++  throw new Error(`POST ${url} returned status ${result.status} (${contentType}): ${text.slice(0, 200)}`);
+ }
+ async function fetchGraphql(url, query, variables = {}, extraHeaders = {}) {
+   const result = await fetchPost(url, {
